@@ -12,9 +12,15 @@ library(googledrive)
 library(zoo)
 library(modelsummary)
 
-# Authentication and Drive info
+# Authentication and Drive info (for workflow run, comment out if running on my computer)
 gs4_auth(path = "google_auth.json")
 drive_auth(path = "google_auth.json")
+
+# # Authentication and Drive info (for local run, comment out if running the workflow)
+# gs4_auth()
+# drive_auth()
+
+# The ID of the Google Drive folder
 target_folder <- as_id("1SS550vx5XmxcQI5byIZ_SRVLbKm-z98F")
 
 # A function to handle outliers in both directions for a variable
@@ -186,7 +192,7 @@ shapes <- c(20, 17, 15, 6, 11)
 g_out <- ggplot() +
   geom_hline(yintercept = period(minutes = 4, seconds = 16),
              linetype = "dashed") +
-  geom_point(data = running %>% filter(type == "Race"),
+  geom_point(data = running %>% filter(type == "Race Effort"),
              aes(x = as.Date(date), y = hms(pace * 60)),
              size = 4, shape = 1, color = "red") +
   geom_point(data = running, aes(x = as.Date(date), y = hms(pace * 60),
@@ -242,7 +248,7 @@ g_out_2 <- ggplot(race_data %>% filter(dist == "42.195"),
                   aes(x = date)) +
   geom_hline(yintercept = period(minutes = 4, seconds = 16),
              linewidth = 1, linetype = "dashed") +
-  geom_point(data = running %>% filter(type == "Race"),
+  geom_point(data = running %>% filter(type == "Race Effort"),
              aes(x = as.Date(date), y = hms(pace * 60)),
              size = 4, shape = 1, color = "red") +
   geom_point(data = running, aes(x = as.Date(date), y = hms(pace * 60),
@@ -265,7 +271,7 @@ drive_put(media = "running_2.png", path = target_folder, name = "running_2.png")
 g_out_3 <- ggplot() +
   geom_hline(yintercept = period(minutes = 4, seconds = 16),
              linewidth = 1, linetype = "dashed") +
-  geom_point(data = running %>% filter(type == "Race"),
+  geom_point(data = running %>% filter(type == "Race Effort"),
              aes(x = as.Date(date), y = hms(pace * 60)),
              size = 4, shape = 1, color = "red") +
   geom_point(data = running, aes(x = as.Date(date), y = hms(pace * 60),

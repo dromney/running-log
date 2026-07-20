@@ -1,0 +1,24 @@
+Upcoming Race: Antelope Island Half Marathon
+Date: Oct 9, 2026
+[1] "5M 33.921188S"     "1H 57M 24.902262S"
+
+
+Total Distance Tracker
+Celebrate at 4,880 km and multiples of that
+[1] 3545.594
+
+
+Shoe Tracker
+Retire daily trainers at ≥600km, Nylon plate shoes at ≥500km, and CF plate shoes at ≥400km
+   shoe     sh_type total_dist
+1     1   Daily Max   754.3850
+2     2   Daily Max   447.4735
+3     3   Daily Max   507.7750
+4     4   Daily Max   456.0650
+5     5   Daily Max   593.7775
+6     6   Daily Max   325.8376
+7     7   Daily Max   193.4800
+8     8 Nylon Plate   128.4200
+9     9    CF Plate    60.9800
+10   10   Daily Max    77.4000
+

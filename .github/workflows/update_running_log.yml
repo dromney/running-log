@@ -18,6 +18,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev
 
+      - name: Setup Pandoc
+        uses: r-lib/actions/setup-pandoc@v2
+
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
         with:
@@ -36,7 +39,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          needed <- c("dplyr", "ggplot2", "tidyr", "forcats", "tibble", "lubridate", "hms", "mgcv", "googlesheets4", "googledrive", "modelsummary", "tinytable", "broom")
+          needed <- c("dplyr", "ggplot2", "tidyr", "forcats", "tibble", "lubridate", "hms", "mgcv", "googlesheets4", "googledrive", "modelsummary", "tinytable", "broom", "rmarkdown")
           missing <- needed[!(needed %in% installed.packages()[,"Package"])]
           if(length(missing)) install.packages(missing)
         shell: Rscript {0}

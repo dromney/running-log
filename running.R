@@ -3,13 +3,16 @@
 rm(list = ls())
 
 # Libraries and packages
-library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(forcats)
+library(tibble)
 library(lubridate)
 library(hms)
 library(mgcv)
 library(googlesheets4)
 library(googledrive)
-library(zoo)
 library(modelsummary)
 
 # Authentication and Drive info (for workflow run, comment out if running on my computer)
@@ -50,15 +53,22 @@ running <- running %>%
          duration = ymd_hms(duration) - ymd_hms("1899-12-30 00:00:00"),
          pace = as.numeric(ymd_hms(pace) - ymd_hms("1899-12-30 00:00:00")),
          type = case_when(
-           type %in% "Race" ~ "Race Effort",
-           type %in% c("Fast", "Hill", "Interval") ~ "Hard Effort",
-           type %in% c("Base", "Tempo", "Three-One") ~ "Medium Effort",
-           type %in% c("Marathon Race Pace", "Easy") ~ "Easy Effort",
-           TRUE ~ type
+           type %in% c("Race") ~ "Race Effort",
+           type %in% c("Fast", "Interval") ~ "Hard Effort",
+           type %in% c("Base", "Hill", "Marathon Race Pace", "Tempo", "Three-One") ~ "Medium Effort",
+           type %in% c("Easy") ~ "Easy Effort",
+           .default = type
          ) %>% factor(levels = c("Easy Effort", "Medium Effort", "Hard Effort", "Race Effort")),
          race = fct_other(type, keep = "Race Effort", other_level = "Non-Race") %>%
            fct_relevel("Non-Race"),
-         surface = factor(surface, levels = c("Road", "Treadmill", "Track"))) %>%
+         surface = factor(surface, levels = c("Road", "Treadmill", "Track")),
+         elevation = case_when(
+           elevation <= 800 ~ "Low Elevation",
+           elevation > 800 & elevation <= 1600 ~ "Base Elevation",
+           elevation > 1600 ~ "High Elevation",
+           .default = as.character(elevation)
+         ),
+         elevation = fct_relevel(elevation, "Base Elevation", "Low Elevation", "High Elevation")) %>%
   # Now create a variable for shoe mileage, after first making sure the data is
   # in order by date (though that should already be the case)
   arrange(as.Date(date)) %>%
@@ -71,10 +81,10 @@ running <- running %>%
            notes)
 
 # Model
-my_mod <- gam(pace ~ s(date, k = 15) + # change over time, one of main predictors
+my_mod <- gam(pace ~ s(date, k = 21) + # change over time, one of main predictors
                 s(dist, k = 4) + # distance effect, other main predictor
                 weather + sun + te(temp, dew, k = 4) + # run conditions
-                type + s(hills, k = 4) + surface + afternoon + # run characteristics
+                type + s(hills, k = 4) + surface + afternoon + elevation + # run characteristics
                 # NOTE: Add s(net_change) if I get enough data to have it be accurate
                 inj_ill + sleep, # personal and equipment conditions
               data = running,
@@ -85,8 +95,11 @@ coef_names <- c("Intercept", "Weather (0 = Good, 0.5 = Okay, 1 = Bad)",
                 "Medium Effort Run (vs. Easy)", "Hard Effort Run (vs. Easy)",
                 "Race Effort Run (vs. Easy)", "Treadmill (vs. Road)",
                 "Track (vs. Road)", "Time of Run (0/1, 1 = After Noon)",
+                "Low Elevation (vs. Base)", "High Elevation (vs. Base)",
                 "Health Status (0/1, 1 = Recently Injured or Ill)",
-                "Sleep Score")
+                "Sleep Score",
+                "Date (Smooth)", "Distance (Smooth)",
+                "Temperature and Dew Point (Smooth)", "Hills (Smooth)")
 # Using Gamma function because, based on the response vs. fitted values plot,
 # it seems like the variance increases with the mean
 # Using log link so that predictions are always positive
@@ -98,11 +111,12 @@ coef_names <- c("Intercept", "Weather (0 = Good, 0.5 = Okay, 1 = Bad)",
 
 # Google Drive files to be able to address the model
 # Overall look at variables
-datasummary_skim(running, output = "model_1skim.html")
+datasummary_skim(running, output = "model_1skim.txt")
 # Coefficients Table
 modelsummary(my_mod,
-             output = "model_1summary.html",
+             output = "model_1summary.txt",
              title = "Running Pace GAM Model, Gamma Function with Log Link",
+             stars = TRUE,
              coef_rename = coef_names,
              exponentiate = TRUE,
              statistic = "conf.int",
@@ -114,8 +128,20 @@ png("model_2gamcheck.png", width = 800, height = 800, res = 100)
 par(mfrow = c(2, 2)) # Forces the 4 plots into a 2x2 grid
 gam.check(my_mod)
 dev.off() # Closes the canvas and saves the file
+pdf("model_2gamcheck.pdf", width = 8, height = 8)
+par(mfrow = c(2, 2)) # Forces the 4 plots into a 2x2 grid
+gam.check(my_mod)
+dev.off() # Closes the canvas and saves the file
 # Smooths
 png("model_3smoothsA.png", width = 1200, height = 800, res = 100)
+plot(my_mod, 
+     pages = 1, 
+     scheme = 1, 
+     shade = TRUE, 
+     shade.col = "lightblue",
+     main = "GAM Smooth Effects") 
+dev.off()
+pdf("model_3smoothsA.pdf", width = 12, height = 8)
 plot(my_mod, 
      pages = 1, 
      scheme = 1, 
@@ -131,18 +157,20 @@ vis.gam(my_mod,
         color = "topo", 
         main = "GAM Surface: Temp vs Dew Point")
 dev.off()
+pdf("model_3smoothsB.pdf", width = 8, height = 6)
+vis.gam(my_mod, 
+        view = c("temp", "dew"), 
+        plot.type = "contour", # or "persp" for 3D
+        color = "topo", 
+        main = "GAM Surface: Temp vs Dew Point")
+dev.off()
 # Autocorrelation Function
 png("model_4acf.png", width = 800, height = 600, res = 100)
 acf(resid(my_mod), main = "ACF of Model Residuals")
 dev.off()
-# Save all of these to Google Drive
-drive_put(media = "model_1skim.html", path = target_folder, name = "model_1skim.html")
-drive_put(media = "model_1summary.html", path = target_folder, name = "model_1summary.html")
-drive_put(media = "model_2gamcheck.txt", path = target_folder, name = "model_2gamcheck.txt")
-drive_put(media = "model_2gamcheck.png", path = target_folder, name = "model_2gamcheck.png")
-drive_put(media = "model_3smoothsA.png", path = target_folder, name = "model_3smoothsA.png")
-drive_put(media = "model_3smoothsB.png", path = target_folder, name = "model_3smoothsB.png")
-drive_put(media = "model_4acf.png", path = target_folder, name = "model_4acf.png")
+pdf("model_4acf.pdf", width = 8, height = 6)
+acf(resid(my_mod), main = "ACF of Model Residuals")
+dev.off()
 
 # Just a note for one of the things put on the graph: the Boston Qualifying Time
 # for my age group for 2026 is 3:00:00, which is a pace of 4:16 min/km
@@ -169,6 +197,8 @@ new_data <- tibble(
   # net_change = mean(running$net_change, na.rm = TRUE), # net elevation change
   surface = factor("Road", levels = c("Road", "Treadmill", "Track")),
   afternoon = 0, # not afternoon
+  elevation = factor("Base Elevation", # normal elevation for my runs
+                     levels = c("Base Elevation", "Low Elevation", "High Elevation")),
   inj_ill = 0, # no injury or illness
   sleep = mean(running$sleep, na.rm = TRUE) # average sleep score
 )
@@ -212,7 +242,7 @@ g_out <- ggplot() +
 g_out
 ggsave("running_1.png", g_out, width = fig_width, height = fig_height, dpi = 300,
        bg = "white")
-drive_put(media = "running_1.png", path = target_folder, name = "running_1.png")
+ggsave("running_1.pdf", g_out, width = fig_width, height = fig_height)
 
 # Racing predicted values
 race_data <- tibble(
@@ -227,6 +257,8 @@ race_data <- tibble(
   # net_change = mean(running$net_change, na.rm = TRUE), # net elevation change
   surface = factor("Road", levels = c("Road", "Treadmill", "Track")),
   afternoon = 0, # not afternoon
+  elevation = factor("Base Elevation", # normal elevation for my runs
+                     levels = c("Base Elevation", "Low Elevation", "High Elevation")),
   inj_ill = 0, # no injury or illness
   sleep = mean(running$sleep, na.rm = TRUE) # average sleep score
 )
@@ -267,7 +299,7 @@ g_out_2 <- ggplot(race_data %>% filter(dist == "42.195"),
 g_out_2
 ggsave("running_2.png", g_out_2, width = fig_width, height = fig_height, dpi = 300,
        bg = "white")
-drive_put(media = "running_2.png", path = target_folder, name = "running_2.png")
+ggsave("running_2.pdf", g_out_2, width = fig_width, height = fig_height)
 g_out_3 <- ggplot() +
   geom_hline(yintercept = period(minutes = 4, seconds = 16),
              linewidth = 1, linetype = "dashed") +
@@ -291,7 +323,7 @@ g_out_3 <- ggplot() +
 g_out_3
 ggsave("running_3.png", g_out_3, width = fig_width, height = fig_height, dpi = 300,
        bg = "white")
-drive_put(media = "running_3.png", path = target_folder, name = "running_3.png")
+ggsave("running_3.pdf", g_out_3, width = fig_width, height = fig_height)
 
 # Make a plot of my running distance over time, but with weekly (pink) and
 # monthly (blue) moving averages
@@ -346,9 +378,8 @@ g_out_4 <- running_full %>%
 g_out_4
 ggsave("running_4.png", g_out_4, width = fig_width, height = fig_height, dpi = 300,
        bg = "white")
-drive_put(media = "running_4.png", path = target_folder, name = "running_4.png")
-datasummary_df(running_summary, "running_4.html")
-drive_put(media = "running_4.html", path = target_folder, name = "running_4.html")
+ggsave("running_4.pdf", g_out_4, width = fig_width, height = fig_height)
+datasummary_df(running_summary, "running_4.txt")
 
 # Make a plot showing the proportion of my time running that is spent in the
 # peak heart rate zone
@@ -420,7 +451,7 @@ g_out_5 <- running_zones %>%
 g_out_5
 ggsave("running_5.png", g_out_5, width = fig_width, height = fig_height * 2, dpi = 300,
        bg = "white")
-drive_put(media = "running_5.png", path = target_folder, name = "running_5.png")
+ggsave("running_5.pdf", g_out_5, width = fig_width, height = fig_height * 2)
 
 # Histogram of distances with the ones I'm predicting marked
 g_out_6 <- ggplot(running, aes(x = dist)) +
@@ -434,7 +465,7 @@ g_out_6 <- ggplot(running, aes(x = dist)) +
 g_out_6
 ggsave("running_6.png", g_out_6, width = fig_width, height = fig_height, dpi = 300,
        bg = "white")
-drive_put(media = "running_6.png", path = target_folder, name = "running_6.png")
+ggsave("running_6.pdf", g_out_6, width = fig_width, height = fig_height)
 
 # # For the Thanksgiving Half Marathon
 # tibble(
@@ -523,7 +554,10 @@ my_predict <- tibble(
   inj_ill = 0, sleep = mean(running$sleep),
   type = factor("Race Effort", levels = levels(running$type)),
   surface = factor("Road", levels = c("Road", "Treadmill", "Track")),
-  temp = 17, dew = 3, sun = 0.5, afternoon = 0, weather = 0
+  temp = 17, dew = 3, sun = 0.5, afternoon = 0,
+  elevation = factor("Base Elevation",
+                     levels = c("Base Elevation", "Low Elevation", "High Elevation")),
+  weather = 0
 ) %>%
   predict(my_mod, newdata = .) %>%
   `[`(1) %>%
@@ -544,6 +578,7 @@ shoes <- running %>%
 # Should change for new shoes at 500-800km, but since I am a larger guy maybe
 # more like 400-600km
 
+# Save out some text
 sink("running_7.txt")
 cat("Upcoming Race: Antelope Island Half Marathon\n")
 cat("Date: Oct 9, 2026\n")
@@ -558,5 +593,22 @@ cat("Retire daily trainers at ≥600km, Nylon plate shoes at ≥500km, and CF pl
 print(as.data.frame(shoes))
 cat("\n")
 sink()
-drive_put(media = "running_7.txt", path = target_folder, name = "running_7.txt")
 
+# Define files I want to upload
+files_to_upload <- c(
+  "model_1skim.txt", "model_1summary.txt", "model_2gamcheck.txt",
+  "model_2gamcheck.png", "model_2gamcheck.pdf", "model_3smoothsA.png",
+  "model_3smoothsA.pdf", "model_3smoothsB.png", "model_3smoothsB.pdf",
+  "model_4acf.png", "model_4acf.pdf", "running_1.png", "running_1.pdf",
+  "running_2.png", "running_2.pdf", "running_3.png", "running_3.pdf",
+  "running_4.png", "running_4.pdf", "running_4.txt", "running_5.png",
+  "running_5.pdf", "running_6.png", "running_6.pdf", "running_7.txt",
+  "running.R"
+)
+
+# Upload them iteratively
+for (file in files_to_upload) {
+  if (file.exists(file)) {
+    drive_put(media = file, path = target_folder, name = file)
+  }
+}

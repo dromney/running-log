@@ -54,8 +54,8 @@ running <- running %>%
          pace = as.numeric(ymd_hms(pace) - ymd_hms("1899-12-30 00:00:00")),
          type = case_when(
            type %in% c("Race") ~ "Race Effort",
-           type %in% c("Fast", "Interval") ~ "Hard Effort",
-           type %in% c("Base", "Hill", "Marathon Race Pace", "Tempo", "Three-One") ~ "Medium Effort",
+           type %in% c("Fast", "Interval", "Hill") ~ "Hard Effort",
+           type %in% c("Base", "Marathon Race Pace", "Tempo", "Three-One") ~ "Medium Effort",
            type %in% c("Easy") ~ "Easy Effort",
            .default = type
          ) %>% factor(levels = c("Easy Effort", "Medium Effort", "Hard Effort", "Race Effort")),

@@ -80,13 +80,15 @@ running <- running %>%
            type, race, surface, elevation, temp, dew, sun, weather, shoe, sh_type)
 
 # Model
-my_mod <- gam(pace ~ s(date, k = 21) + # change over time, one of main predictors
+my_k <- floor(diff(c(min(running$date, na.rm = TRUE), as.numeric(Sys.Date()))) / 365.25 * 4) + 1
+my_mod <- gam(pace ~ s(date, k = my_k) + # change over time, one of main predictors
                 s(dist, k = 4) + # distance effect, other main predictor
                 weather + sun + te(temp, dew, k = 4) + # run conditions
                 type + s(hills, k = 4) + surface + afternoon + elevation + # run characteristics
                 # NOTE: Add s(net_change) if I get enough data to have it be accurate
                 inj_ill + sleep, # personal and equipment conditions
               data = running,
+              gamma = 1.5,
               method = "REML",
               family = Gamma(link = "log"))
 coef_names <- c("Intercept", "Weather (0 = Good, 0.5 = Okay, 1 = Bad)",

@@ -83,6 +83,7 @@ running <- running %>%
 my_k <- floor(diff(c(min(running$date, na.rm = TRUE), as.numeric(Sys.Date()))) / 365.25 * 4) + 1
 my_mod <- gam(pace ~ s(date, k = my_k) + # change over time, one of main predictors
                 s(dist, k = 4) + # distance effect, other main predictor
+                I(dist > 35) + # allow for a jump in pace for long runs
                 weather + sun + te(temp, dew, k = 4) + # run conditions
                 type + s(hills, k = 4) + surface + afternoon + elevation + # run characteristics
                 # NOTE: Add s(net_change) if I get enough data to have it be accurate
@@ -91,7 +92,8 @@ my_mod <- gam(pace ~ s(date, k = my_k) + # change over time, one of main predict
               gamma = 1.5,
               method = "REML",
               family = Gamma(link = "log"))
-coef_names <- c("Intercept", "Weather (0 = Good, 0.5 = Okay, 1 = Bad)",
+coef_names <- c("Intercept", "Distance > 35k (1 = True)",
+                "Weather (0 = Good, 0.5 = Okay, 1 = Bad)",
                 "Sun (0 = Cloudy, 0.5 = Partly Cloudy, 1 = Sunny)",
                 "Medium Effort Run (vs. Easy)", "Hard Effort Run (vs. Easy)",
                 "Race Effort Run (vs. Easy)", "Treadmill (vs. Road)",

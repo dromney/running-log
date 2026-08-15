@@ -11,14 +11,13 @@ library(googlesheets4)
 library(googledrive)
 library(modelsummary)
 
-# # Authentication and Drive info (for workflow run, comment out if running on my computer)
-# gs4_auth(path = "google_auth.json")
-# drive_auth(path = "google_auth.json")
+# Authentication and Drive info (for workflow run, comment out if running on my computer)
+gs4_auth(path = "google_auth.json")
+drive_auth(path = "google_auth.json")
 
-# Authentication and Drive info (for local run, comment out if running the workflow)
-setwd("~/Documents/GitHub/running-log")
-gs4_auth()
-drive_auth()
+# # Authentication and Drive info (for local run, comment out if running the workflow)
+# gs4_auth()
+# drive_auth()
 
 # The ID of the Google Drive folder
 target_folder <- as_id("1SS550vx5XmxcQI5byIZ_SRVLbKm-z98F")

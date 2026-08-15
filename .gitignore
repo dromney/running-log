@@ -1,4 +1,7 @@
-.Rproj.user
+# RStudio user-specific files (open tabs, window layouts)
+.Rproj.user/
+
+# R session history and saved workspace data
 .Rhistory
 .RData
 .Ruserdata

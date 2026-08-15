@@ -1,6 +1,3 @@
-# Clear workspace and load libraries
-rm(list = ls())
-
 # Libraries and packages
 library(dplyr)
 library(ggplot2)
@@ -14,14 +11,14 @@ library(googlesheets4)
 library(googledrive)
 library(modelsummary)
 
-# Authentication and Drive info (for workflow run, comment out if running on my computer)
-gs4_auth(path = "google_auth.json")
-drive_auth(path = "google_auth.json")
+# # Authentication and Drive info (for workflow run, comment out if running on my computer)
+# gs4_auth(path = "google_auth.json")
+# drive_auth(path = "google_auth.json")
 
-# # Authentication and Drive info (for local run, comment out if running the workflow)
-# setwd("~/Documents/GitHub/running-log")
-# gs4_auth()
-# drive_auth()
+# Authentication and Drive info (for local run, comment out if running the workflow)
+setwd("~/Documents/GitHub/running-log")
+gs4_auth()
+drive_auth()
 
 # The ID of the Google Drive folder
 target_folder <- as_id("1SS550vx5XmxcQI5byIZ_SRVLbKm-z98F")
@@ -82,27 +79,26 @@ running <- running %>%
 # Model
 my_k <- floor(diff(c(min(running$date, na.rm = TRUE), as.numeric(Sys.Date()))) / 365.25 * 4) + 1
 my_mod <- gam(pace ~ s(date, k = my_k) + # change over time, one of main predictors
-                s(dist, k = 4) + # distance effect, other main predictor
-                I(dist > 35) + # allow for a jump in pace for long runs
+                dist + # distance effect, other main predictor
                 weather + sun + te(temp, dew, k = 4) + # run conditions
-                type + s(hills, k = 4) + surface + afternoon + elevation + # run characteristics
-                # NOTE: Add s(net_change) if I get enough data to have it be accurate
+                type + hills + net_change + surface + afternoon + elevation + # run characteristics
                 inj_ill + sleep, # personal and equipment conditions
               data = running,
               gamma = 1.5,
               method = "REML",
               family = Gamma(link = "log"))
-coef_names <- c("Intercept", "Distance > 35k (1 = True)",
+coef_names <- c("Intercept", "Distance (km)",
                 "Weather (0 = Good, 0.5 = Okay, 1 = Bad)",
                 "Sun (0 = Cloudy, 0.5 = Partly Cloudy, 1 = Sunny)",
                 "Medium Effort Run (vs. Easy)", "Hard Effort Run (vs. Easy)",
-                "Race Effort Run (vs. Easy)", "Treadmill (vs. Road)",
-                "Track (vs. Road)", "Time of Run (0/1, 1 = After Noon)",
+                "Race Effort Run (vs. Easy)",
+                "Hills (m/km)", "Net Elevation Change (m/km)",
+                "Treadmill (vs. Road)", "Track (vs. Road)",
+                "Time of Run (0/1, 1 = After Noon)",
                 "Low Elevation (vs. Base)", "High Elevation (vs. Base)",
                 "Health Status (0/1, 1 = Recently Injured or Ill)",
                 "Sleep Score",
-                "Date (Smooth)", "Distance (Smooth)",
-                "Temperature and Dew Point (Smooth)", "Hills (Smooth)")
+                "Date (Smooth)", "Temperature and Dew Point (Smooth)")
 # Using Gamma function because, based on the response vs. fitted values plot,
 # it seems like the variance increases with the mean
 # Using log link so that predictions are always positive
@@ -185,7 +181,7 @@ new_data <- tibble(
   dew = mean(running$dew, na.rm = TRUE), # average dew point
   type = factor("Medium Effort", levels = levels(running$type)), # A base run
   hills = mean(running$hills, na.rm = TRUE), # hilliness metric
-  # net_change = mean(running$net_change, na.rm = TRUE), # net elevation change
+  net_change = 0, # no net elevation change
   surface = factor("Road", levels = c("Road", "Treadmill", "Track")),
   afternoon = 0, # not afternoon
   elevation = factor("Base Elevation", # normal elevation for my runs
@@ -243,7 +239,7 @@ race_data <- tibble(
   dew = mean(running$dew, na.rm = TRUE), # average dew point
   type = factor("Race Effort", levels = levels(running$type)), # A race
   hills = mean(running$hills, na.rm = TRUE), # hilliness metric
-  # net_change = mean(running$net_change, na.rm = TRUE), # net elevation change
+  net_change = 0, # no net elevation change
   surface = factor("Road", levels = c("Road", "Treadmill", "Track")),
   afternoon = 0, # not afternoon
   elevation = factor("Base Elevation", # normal elevation for my runs
@@ -322,7 +318,7 @@ today_dat <- tibble(
   dew = mean(running$dew, na.rm = TRUE), # average dew point
   type = factor(rep(my_efforts, each = length(my_dists)), levels = levels(running$type)),
   hills = mean(running$hills, na.rm = TRUE), # hilliness metric
-  # net_change = mean(running$net_change, na.rm = TRUE), # net elevation change
+  net_change = 0, # no net elevation change
   surface = factor("Road", levels = c("Road", "Treadmill", "Track")),
   afternoon = 0, # not afternoon
   elevation = factor("Base Elevation", # normal elevation for my runs
@@ -528,6 +524,7 @@ ggsave("running_6.png", g_out_6, width = fig_width, height = fig_height, dpi = 3
 my_predict <- tibble(
   date = as.numeric(ymd("2026-10-09")), dist = 21.0975,
   hills = (150 + (150 - (0)))/21.0975,
+  net_change = 0,
   inj_ill = 0, sleep = mean(running$sleep),
   type = factor("Race Effort", levels = levels(running$type)),
   surface = factor("Road", levels = c("Road", "Treadmill", "Track")),
@@ -677,3 +674,7 @@ if (file.exists("notebooklm_summary.docx")) {
     type = "document" # This triggers the native Google Docs conversion
   )
 }
+
+
+
+

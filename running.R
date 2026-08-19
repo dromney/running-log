@@ -64,7 +64,8 @@ running <- running %>%
            elevation > 1600 ~ "High Elevation",
            .default = as.character(elevation)
          ),
-         elevation = fct_relevel(elevation, "Base Elevation", "Low Elevation", "High Elevation")) %>%
+         elevation = fct_relevel(elevation, "Base Elevation", "Low Elevation", "High Elevation"),
+         heat_metric = temp + dew + (8 * sun)) %>%
   # Now create a variable for shoe mileage, after first making sure the data is
   # in order by date (though that should already be the case)
   arrange(as.Date(date)) %>%
@@ -73,13 +74,14 @@ running <- running %>%
   ungroup() %>%
   relocate(date, start_time, afternoon, dist, dist_log, dist_fac, duration, pace,
            gain, change, hills, net_change, inj_ill, sleep, vigorous, peak,
-           type, race, surface, elevation, temp, dew, sun, weather, shoe, sh_type)
+           type, race, surface, elevation, temp, dew, sun, heat_metric, weather,
+           shoe, sh_type)
 
 # Model
 my_k <- floor(diff(c(min(running$date, na.rm = TRUE), as.numeric(Sys.Date()))) / 365.25 * 4) + 1
 my_mod <- gam(pace ~ s(date, k = my_k) + # change over time, one of main predictors
                 dist + # distance effect, other main predictor
-                weather + sun + te(temp, dew, k = 4) + # run conditions
+                weather + s(heat_metric, k = 4) + # run conditions
                 type + hills + net_change + surface + afternoon + elevation + # run characteristics
                 inj_ill + sleep, # personal and equipment conditions
               data = running,
@@ -88,7 +90,6 @@ my_mod <- gam(pace ~ s(date, k = my_k) + # change over time, one of main predict
               family = Gamma(link = "log"))
 coef_names <- c("Intercept", "Distance (km)",
                 "Weather (0 = Good, 0.5 = Okay, 1 = Bad)",
-                "Sun (0 = Cloudy, 0.5 = Partly Cloudy, 1 = Sunny)",
                 "Medium Effort Run (vs. Easy)", "Hard Effort Run (vs. Easy)",
                 "Race Effort Run (vs. Easy)",
                 "Hills (m/km)", "Net Elevation Change (m/km)",
@@ -97,7 +98,7 @@ coef_names <- c("Intercept", "Distance (km)",
                 "Low Elevation (vs. Base)", "High Elevation (vs. Base)",
                 "Health Status (0/1, 1 = Recently Injured or Ill)",
                 "Sleep Score",
-                "Date (Smooth)", "Temperature and Dew Point (Smooth)")
+                "Date (Smooth)", "Heat Metric (Smooth)")
 # Using Gamma function because, based on the response vs. fitted values plot,
 # it seems like the variance increases with the mean
 # Using log link so that predictions are always positive
@@ -175,9 +176,7 @@ new_data <- tibble(
   date = rep(my_daterange, n_dists),
   dist = rep(my_dists, each = n_dates), # distances above,
   weather = 0, # not raining or bad weather
-  sun = 0.5, # Partially sunny
-  temp = mean(running$temp, na.rm = TRUE), # average temp
-  dew = mean(running$dew, na.rm = TRUE), # average dew point
+  heat_metric = mean(running$heat_metric, na.rm = TRUE), # Average heat metric
   type = factor("Medium Effort", levels = levels(running$type)), # A base run
   hills = mean(running$hills, na.rm = TRUE), # hilliness metric
   net_change = 0, # no net elevation change
@@ -225,7 +224,6 @@ g_out <- ggplot() +
        y = "Pace, min/km\n(Dashed Line = Boston Qualifying Pace)",
        shape = "Distance,\nRecorded Run\nRed = Race",
        color = "Distance,\nPredicted Run")
-g_out
 ggsave("running_1.png", g_out, width = fig_width, height = fig_height, dpi = 300, bg = "white")
 
 # Racing predicted values
@@ -233,9 +231,7 @@ race_data <- tibble(
   date = rep(my_daterange, n_dists),
   dist = rep(my_dists, each = n_dates), # distances above,
   weather = 0, # not raining or bad weather
-  sun = 0.5, # Partially sunny
-  temp = mean(running$temp, na.rm = TRUE), # average temp
-  dew = mean(running$dew, na.rm = TRUE), # average dew point
+  heat_metric = mean(running$heat_metric, na.rm = TRUE), # Average heat metric
   type = factor("Race Effort", levels = levels(running$type)), # A race
   hills = mean(running$hills, na.rm = TRUE), # hilliness metric
   net_change = 0, # no net elevation change
@@ -312,9 +308,7 @@ today_dat <- tibble(
   date = as.numeric(Sys.Date()),
   dist = rep(my_dists, length(my_efforts)), # distances above,
   weather = 0, # not raining or bad weather
-  sun = 0.5, # Partially sunny
-  temp = mean(running$temp, na.rm = TRUE), # average temp
-  dew = mean(running$dew, na.rm = TRUE), # average dew point
+  heat_metric = mean(running$heat_metric, na.rm = TRUE), # Average heat metric
   type = factor(rep(my_efforts, each = length(my_dists)), levels = levels(running$type)),
   hills = mean(running$hills, na.rm = TRUE), # hilliness metric
   net_change = 0, # no net elevation change
@@ -364,6 +358,7 @@ g_out_3.5 <- ggplot(today_paces, aes(x = dist, y = pred_sec, color = type, group
     y = "Predicted Pace, min/km",
     color = "Effort Type"
   )
+g_out_3.5
 ggsave("running_3.5.png", g_out_3.5,
        width = fig_width, height = fig_height, dpi = 300, bg = "white")
 datasummary_df(today_paces |> select(type, dist, pred, pred_lower, pred_upper),
@@ -527,7 +522,7 @@ my_predict <- tibble(
   inj_ill = 0, sleep = mean(running$sleep),
   type = factor("Race Effort", levels = levels(running$type)),
   surface = factor("Road", levels = c("Road", "Treadmill", "Track")),
-  temp = 17, dew = 3, sun = 0.5, afternoon = 0,
+  heat_metric = 17 + 3 + (8 * 0.5), afternoon = 0,
   elevation = factor("Base Elevation",
                      levels = c("Base Elevation", "Low Elevation", "High Elevation")),
   weather = 0

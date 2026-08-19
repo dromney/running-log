@@ -145,15 +145,6 @@ plot(my_mod,
      main = "GAM Smooth Effects") 
 dev.off()
 
-# Temperature and Dew Tensor Product Smooth
-png("model_3smoothsB.png", width = 800, height = 600, res = 100)
-vis.gam(my_mod, 
-        view = c("temp", "dew"), 
-        plot.type = "contour", # or "persp" for 3D
-        color = "topo", 
-        main = "GAM Surface: Temp vs Dew Point")
-dev.off()
-
 # Autocorrelation Function
 png("model_4acf.png", width = 800, height = 600, res = 100)
 acf(resid(my_mod), main = "ACF of Model Residuals")
